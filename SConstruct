@@ -16,7 +16,7 @@ opts.Add(EnumVariable("target", "Compilation target", "debug", ["d", "debug", "r
 opts.Add(EnumVariable("platform", "Compilation platform", "", platform_array))
 opts.Add(EnumVariable("p", "Alias for 'platform'", "windows", platform_array))
 opts.Add(BoolVariable("use_llvm", "Use the LLVM / Clang compiler", "no"))
-opts.Add(PathVariable("target_path", "The path where the lib is installed.", "godot/bin/"))
+opts.Add(PathVariable("target_path", "The path where the lib is installed.", "bin/"))
 opts.Add(PathVariable("target_name", "The library name.", "gdsam", PathVariable.PathAccept))
 
 # Only support 64-bit systems.
