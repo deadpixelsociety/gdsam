@@ -1,0 +1,13 @@
+.import/
+export.cfg
+export_presets.cfg
+.mono/
+data_*/
+builds/
+.vs
+.vscode
+.sconsign.dblite
+*.d
+*.obj
+*.os
+godot-header/
