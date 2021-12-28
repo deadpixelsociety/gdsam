@@ -12,8 +12,8 @@ env["STATIC_AND_SHARED_OBJECTS_ARE_THE_SAME"] = 1
 
 # Define our options. Use future-proofed names for platforms.
 platform_array = ["", "windows", "linuxbsd", "macos", "x11", "linux", "osx"]
-opts.Add(EnumVariable("target", "Compilation target", "debug", ["d", "debug", "r", "release"]))
-opts.Add(EnumVariable("platform", "Compilation platform", "", platform_array))
+opts.Add(EnumVariable("target", "Compilation target", "release", ["d", "debug", "r", "release"]))
+opts.Add(EnumVariable("platform", "Compilation platform", "windows", platform_array))
 opts.Add(EnumVariable("p", "Alias for 'platform'", "windows", platform_array))
 opts.Add(BoolVariable("use_llvm", "Use the LLVM / Clang compiler", "no"))
 opts.Add(PathVariable("target_path", "The path where the lib is installed.", "bin/"))

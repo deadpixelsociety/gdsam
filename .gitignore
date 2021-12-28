@@ -10,4 +10,6 @@ builds/
 *.d
 *.obj
 *.os
+*.lib
+*.exp
 godot-header/

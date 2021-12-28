@@ -192,14 +192,12 @@ godot_variant gdsam_speak(godot_object *p_instance, void *p_method_data, void *p
     for(int i = 0; _input[i] != 0; i++) _input[i] = toupper((int)_input[i]);
 
     if(!user_data->phonetic) {
-        strncat(_input, "[", 256);
+        strncat(_input, "[", 255);
         if(!TextToPhonemes((unsigned char *)_input)) {
             GD_RETURN_NULL();
         }
-        printf("text input: %s\n", _input);
     } else {
-        strncat(_input, "\x9b", 256);
-        printf("phonetic input: %s\n", _input);
+        strncat(_input, "\x9b", 255);
     }
 
     SetInput(_input);
