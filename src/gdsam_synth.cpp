@@ -30,6 +30,7 @@ extern "C" {
         CharString char_string = phrase.utf8();
         const char *input = char_string.get_data();
 
+        ResetSam();
         SetSpeed(speed & 0xFF);
         SetPitch(pitch & 0xFF);
         SetMouth(mouth & 0xFF);
