@@ -25,7 +25,7 @@ if env["platform"] == "macos":
     )
 else:
     library = env.SharedLibrary(
-        "bin/{}/gdsam{}".format(env["platform"], env["SHLIBSUFFIX"]),
+        "bin/{}/gdsam.{}{}".format(env["platform"], env["target"], env["SHLIBSUFFIX"]),
         source=sources,
     )
 
