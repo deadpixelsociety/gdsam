@@ -13,3 +13,4 @@ builds/
 *.lib
 *.exp
 godot-header/
+*.DS_Store
