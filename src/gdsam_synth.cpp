@@ -45,7 +45,7 @@ extern "C" {
         strcpy(_input, input);
         for(int i = 0; _input[i] != 0; i++) _input[i] = toupper((int)_input[i]);
 
-        if(phonetic) {
+        if(!phonetic) {
             strncat(_input, "[", 255);
             if(!TextToPhonemes((unsigned char *)_input)) {
                 return NULL;
