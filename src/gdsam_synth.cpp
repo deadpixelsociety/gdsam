@@ -1,7 +1,6 @@
 #include "gdsam_synth.h"
 
-#include <godot_cpp/core/class_db.hpp>
-
+#include <cctype>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/global_constants.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
