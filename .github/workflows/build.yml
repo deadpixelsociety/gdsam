@@ -1,0 +1,116 @@
+name: Build GDExtension
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux (x86_64)
+            os: ubuntu-22.04
+            platform: linux
+            artifact-name: gdsam-linux-x86_64
+            cache-name: linux-x86_64
+
+          - name: Windows (x86_64, MSVC)
+            os: windows-2022
+            platform: windows
+            artifact-name: gdsam-windows-x86_64
+            cache-name: windows-x86_64
+
+          - name: macOS (universal)
+            os: macos-latest
+            platform: macos
+            flags: arch=universal
+            artifact-name: gdsam-macos-universal
+            cache-name: macos-universal
+
+    env:
+      SCONS_CACHE: ${{ github.workspace }}/.scons-cache/
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+
+      - name: Install SCons
+        run: |
+          python -m pip install scons==4.4.0
+          scons --version
+
+      - name: Cache SCons build
+        uses: actions/cache@v4
+        with:
+          path: .scons-cache/
+          key: ${{ matrix.cache-name }}-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ${{ matrix.cache-name }}-${{ github.ref }}-
+            ${{ matrix.cache-name }}-
+
+      - name: Build (template_debug)
+        run: |
+          scons platform=${{ matrix.platform }} verbose=yes target=template_debug ${{ matrix.flags }}
+
+      - name: Build (template_release)
+        run: |
+          scons platform=${{ matrix.platform }} verbose=yes target=template_release ${{ matrix.flags }}
+
+      - name: Rename to plugin naming convention
+        shell: bash
+        run: |
+          find bin/${{ matrix.platform }} -type f -name '*template_debug*' | while read f; do
+            mv "$f" "${f/template_debug/debug}"
+          done
+          find bin/${{ matrix.platform }} -type f -name '*template_release*' | while read f; do
+            mv "$f" "${f/template_release/release}"
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: bin/${{ matrix.platform }}/
+          if-no-files-found: error
+
+  merge:
+    name: Merge artifacts
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bin/
+
+      - name: Assemble plugin bin directory
+        run: |
+          mkdir -p addons/gdsam/bin
+          mv bin/gdsam-linux-x86_64 addons/gdsam/bin/linux
+          mv bin/gdsam-windows-x86_64 addons/gdsam/bin/windows
+          mv bin/gdsam-macos-universal addons/gdsam/bin/macos
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdsam-bin
+          path: addons/gdsam/bin/
+          if-no-files-found: error
