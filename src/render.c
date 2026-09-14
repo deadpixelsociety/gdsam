@@ -400,12 +400,6 @@ void Render()
     mem44 = 0;
     mem49 = 0;    
 
-    for(int j = 0; j < 80; j++) {
-        _freq1data[j] = freq1data[j];
-        _freq2data[j] = freq2data[j];
-    }
-
-
 // CREATE FRAMES
 //
 // The length parameter in the list corresponds to the number of frames
@@ -1034,6 +1028,11 @@ void SetMouthThroat(unsigned char mouth, unsigned char throat)
     unsigned char newFrequency = 0;
     //unsigned char mouth; //mem38880
     //unsigned char throat; //mem38881
+
+    // Initialize the complete tables before applying this utterance's voice settings.
+    // Render() reuses the adjusted frequencies for every segment of the utterance.
+    memcpy(_freq1data, freq1data, sizeof(_freq1data));
+    memcpy(_freq2data, freq2data, sizeof(_freq2data));
 
     // mouth formants (F1) 5..29
     unsigned char mouthFormants5_29[30] = {
