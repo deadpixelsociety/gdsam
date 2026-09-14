@@ -3,29 +3,54 @@
 #include "reciter.h"
 #include "ReciterTabs.h"
 #include "debug.h"
+#include "sam.h"
+#include <stdlib.h>
+#include <stdint.h>
 
-unsigned char A, X, Y;
+/* Reciter positions are independent of the renderer's byte registers. */
+static ptrdiff_t A, X, Y;
+static unsigned char *inputtemp;
+static size_t input_length;
+static char *output;
+static size_t output_length, output_capacity;
+
+static unsigned char ReadInput(ptrdiff_t position) {
+    return position >= 0 && (size_t)position < input_length ? inputtemp[position] : ' ';
+}
+
+static unsigned char Classify(ptrdiff_t value) {
+    return value >= 0 && (size_t)value < sizeof(tab36376) ? tab36376[value] : 0;
+}
+
+static int AppendOutput(unsigned char value) {
+    char *next = SamGrow(output, &output_capacity, output_length + 2);
+    if (!next) return 0;
+    output = next;
+    output[output_length++] = (char)value;
+    output[output_length] = 0;
+    return 1;
+}
 extern int debug;
 
-static unsigned char inputtemp[256];   // secure copy of input tab36096
 
-void Code37055(unsigned char mem59)
+
+void Code37055(ptrdiff_t mem59)
 {
     X = mem59;
     X--;
-    A = inputtemp[X];
+    A = ReadInput(X);
     Y = A;
-    A = tab36376[Y];
+    A = Classify(Y);
     return;
 }
 
-void Code37066(unsigned char mem58)
+void Code37066(ptrdiff_t mem58)
 {
     X = mem58;
     X++;
-    A = inputtemp[X];
+    A = ReadInput(X);
     Y = A;
-    A = tab36376[Y];
+    A = Classify(Y);
 }
 
 unsigned char GetRuleByte(unsigned short mem62, unsigned char Y)
@@ -35,101 +60,47 @@ unsigned char GetRuleByte(unsigned short mem62, unsigned char Y)
     if (mem62 >= 37541)
     {
         address -= 37541;
+        if (address + Y >= sizeof(rules2)) { SamSetError("Invalid reciter rule"); return 128; }
         return rules2[address+Y];
     }
     address -= 32000;
+    if (address + Y >= sizeof(rules)) { SamSetError("Invalid reciter rule"); return 128; }
     return rules[address+Y];
 }
 
-int TextToPhonemes(unsigned char *input) // Code36484
+static int ReciteRules(void)
 {
-    //unsigned char *tab39445 = &mem[39445];   //input and output
-    //unsigned char mem29;
-    unsigned char mem56;      //output position for phonemes
-    unsigned char mem57;
-    unsigned char mem58;
-    unsigned char mem59;
-    unsigned char mem60;
-    unsigned char mem61;
-    unsigned short mem62;     // memory position of current rule
-
-    unsigned char mem64;      // position of '=' or current character
-    unsigned char mem65;     // position of ')'
-    unsigned char mem66;     // position of '('
-    unsigned char mem36653;
-
-    A = 0;
-    X = 0;
-    Y = 0;
-
-    for(int i = 0; i < 256; i++) {
-        inputtemp[i] = 0;
-    }
-
-    inputtemp[0] = 32;
-
-    // secure copy of input
-    // because input will be overwritten by phonemes
-    X = 1;
-    Y = 0;
-    do
-    {
-        //pos36499:
-        A = input[Y] & 127;
-        if ( A >= 112) A = A & 95;
-        else if ( A >= 96) A = A & 79;
-
-        inputtemp[X] = A;
-        X++;
-        Y++;
-    } while (Y != 255);
-
-
-    X = 255;
-    inputtemp[X] = 27;
-    mem61 = 255;
-
-
-pos36550:
-    A = 255;
-    mem56 = 255;
-
+    ptrdiff_t mem57, mem58, mem59, mem60, mem61 = -1;
+    unsigned short mem62;
+    unsigned char mem64, mem65, mem66;
+    A = X = Y = 0;
 
 pos36554:
     while(1)
     {
         mem61++;
         X = mem61;
-        A = inputtemp[X];
+        A = ReadInput(X);
         mem64 = A;
         if (A == '[')
         {
-            mem56++;
-            X = mem56;
-            A = 155;
-            input[X] = 155;
-            //goto pos36542;
-            //          Code39771();    //Code39777();
             return 1;
         }
 
         //pos36579:
         if (A != '.') break;
         X++;
-        Y = inputtemp[X];
-        A = tab36376[Y] & 1;
+        Y = ReadInput(X);
+        A = Classify(Y) & 1;
         if(A != 0) break;
-        mem56++;
-        X = mem56;
-        A = '.';
-        input[X] = '.';
+        if (!AppendOutput('.')) return 0;
     } //while
 
 
     //pos36607:
     A = mem64;
     Y = A;
-    A = tab36376[A];
+    A = Classify(A);
     mem57 = A;
     if((A&2) != 0)
     {
@@ -142,27 +113,8 @@ pos36554:
     if(A != 0) goto pos36677;
     A = 32;
     inputtemp[X] = ' ';
-    mem56++;
-    X = mem56;
-    if (X > 120) goto pos36654;
-    input[X] = A;
+    if (!AppendOutput(' ')) return 0;
     goto pos36554;
-
-    // -----
-
-    //36653 is unknown. Contains position
-
-pos36654:
-    input[X] = 155;
-    A = mem61;
-    mem36653 = A;
-    //  mem29 = A; // not used
-    //  Code36538(); das ist eigentlich
-    return 1;
-    //Code39771();
-    //go on if there is more input ???
-    mem61 = mem36653;
-    goto pos36550;
 
 pos36677:
     A = mem57 & 128;
@@ -188,6 +140,7 @@ pos36700:
     {
         mem62 += 1;
         A = GetRuleByte(mem62, Y);
+        if (SamGetError()[0]) return 0;
     } while ((A & 128) == 0);
     Y++;
 
@@ -196,6 +149,7 @@ pos36700:
     while(1)
     {
         A = GetRuleByte(mem62, Y);
+        if (SamGetError()[0]) return 0;
         if (A == '(') break;
         Y++;
     }
@@ -207,6 +161,7 @@ pos36700:
     {
         Y++;
         A = GetRuleByte(mem62, Y);
+        if (SamGetError()[0]) return 0;
     } while(A != ')');
     mem65 = Y;
 
@@ -216,6 +171,7 @@ pos36700:
     {
         Y++;
         A = GetRuleByte(mem62, Y);
+        if (SamGetError()[0]) return 0;
         A = A & 127;
     } while (A != '=');
     mem64 = Y;
@@ -229,8 +185,9 @@ pos36700:
     //pos36759:
     while(1)
     {
-        mem57 = inputtemp[X];
+        mem57 = ReadInput(X);
         A = GetRuleByte(mem62, Y);
+        if (SamGetError()[0]) return 0;
         if (A != mem57) goto pos36700;
         Y++;
         if(Y == mem65) break;
@@ -250,14 +207,15 @@ pos36791:
         mem66--;
         Y = mem66;
         A = GetRuleByte(mem62, Y);
+        if (SamGetError()[0]) return 0;
         mem57 = A;
         //36800: BPL 36805
         if ((A & 128) != 0) goto pos37180;
         X = A & 127;
-        A = tab36376[X] & 128;
+        A = Classify(X) & 128;
         if (A == 0) break;
         X = mem59-1;
-        A = inputtemp[X];
+        A = ReadInput(X);
         if (A != mem57) goto pos36700;
         mem59 = X;
     }
@@ -311,10 +269,10 @@ pos36935:
     Code37055(mem59);
     A = A & 16;
     if(A != 0) goto pos36930;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != 72) goto pos36700;
     X--;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if ((A == 67) || (A == 83)) goto pos36930;
     goto pos36700;
 
@@ -324,7 +282,7 @@ pos36967:
     Code37055(mem59);
     A = A & 4;
     if(A != 0) goto pos36930;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != 72) goto pos36700;
     if ((A != 84) && (A != 67) && (A != 83)) goto pos36700;
     mem59 = X;
@@ -347,7 +305,7 @@ pos37014:
 pos37019:
     X = mem59;
     X--;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if ((A == 'E') || (A == 'I') || (A == 'Y')) goto pos37014;
     goto pos36700;
     // --------------
@@ -364,15 +322,15 @@ pos37040:
 
 pos37077:
     X = mem58+1;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != 'E') goto pos37157;
     X++;
-    Y = inputtemp[X];
+    Y = ReadInput(X);
     X--;
-    A = tab36376[Y] & 128;
+    A = Classify(Y) & 128;
     if(A == 0) goto pos37108;
     X++;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != 'R') goto pos37113;
 pos37108:
     mem58 = X;
@@ -381,27 +339,27 @@ pos37113:
     if ((A == 83) || (A == 68)) goto pos37108;  // 'S' 'D'
     if (A != 76) goto pos37135; // 'L'
     X++;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != 89) goto pos36700;
     goto pos37108;
 
 pos37135:
     if (A != 70) goto pos36700;
     X++;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != 85) goto pos36700;
     X++;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A == 76) goto pos37108;
     goto pos36700;
 
 pos37157:
     if (A != 73) goto pos36700;
     X++;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != 78) goto pos36700;
     X++;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A == 71) goto pos37108;
     //pos37177:
     goto pos36700;
@@ -422,12 +380,13 @@ pos37184:
     mem65 = Y;
     //37196: LDA (62),y
     A = GetRuleByte(mem62, Y);
+    if (SamGetError()[0]) return 0;
     mem57 = A;
     X = A;
-    A = tab36376[X] & 128;
+    A = Classify(X) & 128;
     if(A == 0) goto pos37226;
     X = mem58+1;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != mem57) goto pos36700;
     mem58 = X;
     goto pos37184;
@@ -482,10 +441,10 @@ pos37335:
     Code37066(mem58);
     A = A & 16;
     if(A != 0) goto pos37330;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != 72) goto pos36700;
     X++;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if ((A == 67) || (A == 83)) goto pos37330;
     goto pos36700;
 
@@ -496,7 +455,7 @@ pos37367:
     Code37066(mem58);
     A = A & 4;
     if(A != 0) goto pos37330;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if (A != 72) goto pos36700;
     if ((A != 84) && (A != 67) && (A != 83)) goto pos36700;
     mem58 = X;
@@ -517,7 +476,7 @@ pos37414:
 pos37419:
     X = mem58;
     X++;
-    A = inputtemp[X];
+    A = ReadInput(X);
     if ((A == 69) || (A == 73) || (A == 89)) goto pos37414;
     goto pos36700;
 
@@ -540,13 +499,12 @@ pos37455:
 pos37461:
     //37461: LDA (62),y
     A = GetRuleByte(mem62, Y);
+    if (SamGetError()[0]) return 0;
     mem57 = A;
     A = A & 127;
     if (A != '=')
     {
-        mem56++;
-        X = mem56;
-        input[X] = A;
+        if (!AppendOutput((unsigned char)A)) return 0;
     }
 
     //37478: BIT 57
@@ -556,4 +514,53 @@ pos37461:
 pos37485:
     Y++;
     goto pos37461;
+}
+
+int ReciteText(const char *text, size_t length, char **phonemes, size_t *phoneme_length) {
+    int ok;
+    *phonemes = NULL;
+    *phoneme_length = 0;
+    output = NULL;
+    output_length = output_capacity = 0;
+    if (length > PTRDIFF_MAX - 2) { SamSetError("Text is too large"); return 0; }
+    input_length = length + 2;
+    inputtemp = SamAlloc(input_length);
+    if (!inputtemp) return 0;
+    inputtemp[0] = ' ';
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char c = (unsigned char)text[i];
+        if (c < 32 || c > 126 || c == '[' || c == ']') {
+            SamSetError("Unsupported text byte at position %zu", i);
+            free(inputtemp); inputtemp = NULL; return 0;
+        }
+        inputtemp[i + 1] = c >= 'a' && c <= 'z' ? c - 32 : c;
+    }
+    inputtemp[length + 1] = '[';
+    ok = ReciteRules();
+    free(inputtemp); inputtemp = NULL;
+    if (!ok) {
+        SamSetError("Unable to recite text near position %td", X > 0 ? X - 1 : 0);
+        free(output); output = NULL; return 0;
+    }
+    *phonemes = output;
+    *phoneme_length = output_length;
+    output = NULL;
+    return 1;
+}
+
+/* Compatibility entry point for bounded, sentinel-terminated C callers. */
+int TextToPhonemes(unsigned char *text) {
+    size_t length = 0, result_length;
+    char *result;
+    while (length < 256 && text[length] && text[length] != '[') ++length;
+    if (length == 256) { SamSetError("Unterminated reciter input"); return 0; }
+    if (!ReciteText((const char *)text, length, &result, &result_length)) return 0;
+    if (result_length > 253) {
+        free(result); SamSetError("Use ReciteText for expanded phoneme output"); return 0;
+    }
+    memcpy(text, result, result_length);
+    text[result_length] = 155;
+    text[result_length + 1] = 0;
+    free(result);
+    return 1;
 }

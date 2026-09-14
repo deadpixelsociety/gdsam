@@ -2,6 +2,8 @@
 import os
 import sys
 
+# Keep validation builds separate from packaged libraries when requested.
+output_dir = ARGUMENTS.pop("output_dir", "bin")
 env = SConscript("godot-cpp/SConstruct")
 
 # For the reference:
@@ -16,16 +18,19 @@ env = SConscript("godot-cpp/SConstruct")
 env.Append(CPPPATH=["src/"])
 sources = Glob("src/*.c**")
 
+
 if env["platform"] == "macos":
     library = env.SharedLibrary(
-        "bin/{}/gdsam.{}.framework/libgdsam.{}".format(
+        "{}/{}/gdsam.{}.framework/libgdsam.{}".format(
+            output_dir,
             env["platform"], env["platform"], env["target"]
         ),
         source=sources,
     )
 else:
     library = env.SharedLibrary(
-        "bin/{}/gdsam.{}{}".format(env["platform"], env["target"], env["SHLIBSUFFIX"]),
+        "{}/{}/gdsam.{}{}".format(
+            output_dir, env["platform"], env["target"], env["SHLIBSUFFIX"]),
         source=sources,
     )
 

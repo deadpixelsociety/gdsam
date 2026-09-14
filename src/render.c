@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "render.h"
+#include "sam.h"
 #include "RenderTabs.h"
 
 #include "debug.h"
@@ -11,7 +12,7 @@ extern int debug;
 unsigned char wait1 = 7;
 unsigned char wait2 = 6;
 
-extern unsigned char A, X, Y;
+unsigned char A, X, Y;
 extern unsigned char mem44;
 extern unsigned char mem47;
 extern unsigned char mem49;
@@ -50,9 +51,6 @@ void AddInflection(unsigned char mem48, unsigned char phase1);
 unsigned char trans(unsigned char mem39212, unsigned char mem39213);
 
 
-// contains the final soundbuffer
-extern int bufferpos;
-extern char *buffer;
 
 
 
@@ -80,7 +78,7 @@ void ResetRender() {
         sampledConsonantFlag[i] = 0;
     }
 
-    for(int i = 0; i < 60; i++) {
+    for(int i = 0; i < 80; i++) {
         _freq1data[i] = 0;
         _freq2data[i] = 0;
     }
@@ -90,12 +88,8 @@ void ResetRender() {
 
 void Output8BitAry(int index, unsigned char ary[5])
 {
-    int k;
-    bufferpos += timetable[oldtimetableindex][index];
-    oldtimetableindex = index;
-    // write a little bit in advance
-    for(k=0; k<5; k++)
-        buffer[bufferpos/50 + k] = ary[k];
+    if (SamWriteAudio(timetable[oldtimetableindex][index], ary, 5))
+        oldtimetableindex = index;
 }
 
 void Output8Bit(int index, unsigned char A)
@@ -271,12 +265,14 @@ pos48280:
         //mem[54296] = X;
         // output the byte
         Output8Bit(1, (X&0x0f) * 16);
+        if (SamGetError()[0]) return;
         // if X != 0, exit loop
         if(X != 0) goto pos48296;
     }
 
     // output a 5 for the on bit
     Output8Bit(2, 5 * 16);
+    if (SamGetError()[0]) return;
 
     //48295: NOP
 pos48296:
@@ -334,12 +330,14 @@ pos48315:
                 // if bit set, output 26
                 X = 26;
                 Output8Bit(3, (X&0xf)*16);
+                if (SamGetError()[0]) return;
             } else
             {
                 //timetable 4
                 // bit is not set, output a 6
                 X=6;
                 Output8Bit(4, (X&0xf)*16);
+                if (SamGetError()[0]) return;
             }
 
             mem56--;
@@ -392,6 +390,14 @@ void Render()
     unsigned char speedcounter=0; //mem45
     unsigned char mem48=0;
     int i;
+    memset(pitches, 0, sizeof(pitches));
+    memset(frequency1, 0, sizeof(frequency1));
+    memset(frequency2, 0, sizeof(frequency2));
+    memset(frequency3, 0, sizeof(frequency3));
+    memset(amplitude1, 0, sizeof(amplitude1));
+    memset(amplitude2, 0, sizeof(amplitude2));
+    memset(amplitude3, 0, sizeof(amplitude3));
+    memset(sampledConsonantFlag, 0, sizeof(sampledConsonantFlag));
     if (phonemeIndexOutput[0] == 255) return; //exit if no data
 
     A = 0;
@@ -832,6 +838,7 @@ if (debug)
         {
             // render the sample for the phoneme
             RenderSample(&mem66);
+            if (SamGetError()[0]) return;
 
             // skip ahead two in the phoneme buffer
             Y += 2;
@@ -861,6 +868,7 @@ if (debug)
             }
             // output the accumulated value
             Output8BitAry(0, ary);
+            if (SamGetError()[0]) return;
             speedcounter--;
             if (speedcounter != 0) goto pos48155;
             Y++; //go to next amplitude
@@ -912,62 +920,12 @@ pos48159:
         // glottal pulse. The sample flag is non-zero, so render
         // the sample for the phoneme.
         RenderSample(&mem66);
+        if (SamGetError()[0]) return;
         goto pos48159;
     } //while
 
 
-    // The following code is never reached. It's left over from when
-    // the voiced sample code was part of this loop, instead of part
-    // of RenderSample();
-
-    //pos48315:
-    int tempA;
-    phase1 = A ^ 255;
-    Y = mem66;
-    do
-    {
-        //pos48321:
-
-        mem56 = 8;
-        A = Read(mem47, Y);
-
-        //pos48327:
-        do
-        {
-            //48327: ASL A
-            //48328: BCC 48337
-            tempA = A;
-            A = A << 1;
-            if ((tempA & 128) != 0)
-            {
-                X = 26;
-                // mem[54296] = X;
-                bufferpos += 150;
-                buffer[bufferpos/50] = (X & 15)*16;
-            } else
-            {
-                //mem[54296] = 6;
-                X=6;
-                bufferpos += 150;
-                buffer[bufferpos/50] = (X & 15)*16;
-            }
-
-            for(X = wait2; X>0; X--); //wait
-            mem56--;
-        } while(mem56 != 0);
-
-        Y++;
-        phase1++;
-
-    } while (phase1 != 0);
-    //  if (phase1 != 0) goto pos48321;
-    A = 1;
-    mem44 = 1;
-    mem66 = Y;
-    Y = mem49;
-    return;
 }
-
 
 // Create a rising or falling inflection 30 frames prior to
 // index X. A rising inflection is used for questions, and
@@ -980,6 +938,7 @@ void AddInflection(unsigned char mem48, unsigned char phase1)
 //pos48376:
 
     // store the location of the punctuation
+    if (X == 0) return;
     mem49 = X;
     A = X;
     int Atemp = A;
@@ -992,7 +951,8 @@ void AddInflection(unsigned char mem48, unsigned char phase1)
 
     // FIXME: Explain this fix better, it's not obvious
     // ML : A =, fixes a problem with invalid pitch with '.'
-    while( (A=pitches[X]) == 127) X++;
+    while (X < mem49 && (A = pitches[X]) == 127) X++;
+    if (X >= mem49) return;
 
 
 pos48398:

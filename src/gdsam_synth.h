@@ -25,6 +25,7 @@ class GDSAMSynth : public RefCounted {
         int throat;
         bool singing;
         bool phonetic;
+        mutable String last_error;
 
     public:
         GDSAMSynth();
@@ -36,7 +37,8 @@ class GDSAMSynth : public RefCounted {
         void set_throat(int throat);
         void set_singing(bool singing);
         void set_phonetic(bool phonetic);
+        String get_last_error() const;
         PackedByteArray speak(const String phrase) const;
 };
 
-#endif GDSAM_CLASS_H
+#endif // GDSAM_CLASS_H

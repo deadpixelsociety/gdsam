@@ -1,5 +1,19 @@
 #ifndef SAM_H
 #define SAM_H
+#include <stddef.h>
+#include <stdint.h>
+
+void *SamAlloc(size_t size);
+void *SamGrow(void *data, size_t *capacity, size_t needed);
+void SamSetError(const char *format, ...);
+const char *SamGetError(void);
+/* The engine owns input, phonemes, and PCM. Reset starts a call; FreeSam ends it. */
+void FreeSam(void);
+int SetInputText(const char *text, size_t length);
+int SamWriteAudio(int advance, const unsigned char *samples, size_t count);
+#ifdef SAM_TESTING
+void SamFailAllocationAfter(ptrdiff_t count);
+#endif
 
 void ResetSam();
 void SetInput(char *_input);
@@ -12,8 +26,9 @@ void EnableDebug();
 
 int SAMMain();
 
+/* Borrowed PCM; never free this pointer directly. Length is in SAM timing ticks. */
 char* GetBuffer();
-int GetBufferLength();
+uint64_t GetBufferLength();
 
 
 //char input[]={"/HAALAOAO MAYN NAAMAEAE IHSTT SAEBAASTTIHAAN \x9b\x9b\0"};
